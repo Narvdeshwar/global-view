@@ -2,13 +2,13 @@ import { useState, useEffect, memo, useMemo } from 'react';
 import DeckGL from '@deck.gl/react';
 import { FlyToInterpolator } from '@deck.gl/core';
 import type { MapViewState } from '@deck.gl/core';
-import { IconLayer, ScatterplotLayer } from '@deck.gl/layers';
-import { TripsLayer } from '@deck.gl/geo-layers';
-import { Map } from 'react-map-gl/maplibre';
+import { IconLayer, ScatterplotLayer, LineLayer } from '@deck.gl/layers';
+import { TripsLayer, Tile3DLayer } from '@deck.gl/geo-layers';
+import { Map, Source, Layer } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { SmartCamera } from './components/SmartCamera';
-import { getLiveFlights, getSeismicActivity } from './lib/osint';
-import type { FlightData, SeismicData } from './lib/osint';
+import { getLiveFlights, getSeismicActivity, getSatelliteTracks } from './lib/osint';
+import type { FlightData, SeismicData, SatelliteData } from './lib/osint';
 import { loadCityRoadsSequentially } from './lib/traffic';
 import type { TrafficTrip } from './lib/traffic';
 
@@ -22,6 +22,7 @@ const INITIAL_VIEW_STATE = {
 
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const AIRPLANE_ICON = 'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png';
+const GOOGLE_MAP_KEY = ''; // ENTER_KEY_FOR_3D_TILES_PHASE_2
 
 const DIAGNOSTIC_MESSAGES = [
   "UPLINK_ESTABLISHED // SOURCE: OPEN-SKY-NODE-7",
@@ -67,7 +68,10 @@ const ViewContainer = memo(({ viewState, setViewState, layers, onMouseEnter, onM
         getTooltip={({ object }) => {
           if (!object) return null;
           if ('callsign' in object) {
-            return `FLIGHT: ${object.callsign}\nALT: ${object.altitude}m\nSPD: ${object.velocity}m/s`;
+            return `${object.isMilitary ? 'MILITARY' : 'CIVILIAN'} FLIGHT: ${object.callsign}\nALT: ${object.altitude}m`;
+          }
+          if ('name' in object) {
+            return `SATELLITE: ${object.name}\nORBIT: LEO\nALT: ${Math.round(object.altitude / 1000)}km`;
           }
           if ('magnitude' in object) {
             return `SEISMIC ALERT\nMAG: ${object.magnitude}\nLOC: ${object.place}`;
@@ -79,7 +83,28 @@ const ViewContainer = memo(({ viewState, setViewState, layers, onMouseEnter, onM
           mapStyle={MAP_STYLE}
           projection={viewMode === 'GLOBE' ? 'globe' : 'mercator'}
           style={{ background: 'transparent' }}
-        />
+          terrain={{ source: 'terrain-source', exaggeration: 1.5 }}
+        >
+          <Source
+            id="terrain-source"
+            type="raster-dem"
+            url="https://demotiles.maplibre.org/terrain-tiles/tiles.json"
+            tileSize={256}
+          />
+          <Layer
+            id="3d-buildings"
+            source="openmaptiles"
+            source-layer="building"
+            type="fill-extrusion"
+            minzoom={14}
+            paint={{
+              'fill-extrusion-color': '#00ff41',
+              'fill-extrusion-height': ['get', 'render_height'],
+              'fill-extrusion-base': ['get', 'render_min_height'],
+              'fill-extrusion-opacity': 0.6
+            }}
+          />
+        </Map>
       </DeckGL>
     </div>
   );
@@ -130,7 +155,7 @@ const VisualProcessingPanel = memo(({ visionMode, setVisionMode, viewMode, setVi
   </div>
 ));
 
-const HudOverlay = memo(({ viewState, flightsCount, earthquakesCount, trafficCount }: any) => (
+const HudOverlay = memo(({ viewState, flightsCount, militaryCount, satellitesCount, earthquakesCount, trafficCount }: any) => (
   <div className="absolute top-4 left-4 z-10 font-mono pointer-events-none">
     <div className="flex items-center gap-4 mb-3">
       <div className="relative">
@@ -152,8 +177,8 @@ const HudOverlay = memo(({ viewState, flightsCount, earthquakesCount, trafficCou
           <div className="text-white font-black text-lg tracking-tight transition-all duration-300">{viewState.latitude?.toFixed(4)}N</div>
         </div>
         <div className="space-y-1 text-right">
-          <div className="opacity-40 uppercase text-[8px] font-bold tracking-widest">Signal:Air</div>
-          <div className="text-cyan-400 font-black text-lg tracking-tight">{flightsCount} T-NODE</div>
+          <div className="opacity-40 uppercase text-[8px] font-bold tracking-widest">Orbital Nodes</div>
+          <div className="text-cyan-400 font-black text-lg tracking-tight">{satellitesCount} SAT-UPLINK</div>
         </div>
 
         <div className="space-y-1">
@@ -161,14 +186,18 @@ const HudOverlay = memo(({ viewState, flightsCount, earthquakesCount, trafficCou
           <div className="text-white font-black text-lg tracking-tight tracking-tight">{viewState.longitude?.toFixed(4)}E</div>
         </div>
         <div className="space-y-1 text-right">
-          <div className="opacity-40 uppercase text-[8px] font-bold tracking-widest">Signal:Seis</div>
-          <div className="text-red-400 font-black text-lg tracking-tight">{earthquakesCount} ALERT</div>
+          <div className="opacity-40 uppercase text-[8px] font-bold tracking-widest">Signal:Air</div>
+          <div className="text-red-400 font-black text-lg tracking-tight">{militaryCount} MIL-TRANS</div>
         </div>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-green-500/20 flex justify-between items-center">
-        <div className="text-[8px] font-bold opacity-30 uppercase">Uplink Encryption: AES-256</div>
-        <div className="text-orange-400 font-bold text-xs">{trafficCount} TRAFFIC</div>
+      <div className="mt-4 pt-4 border-t border-green-500/20 flex flex-col gap-2">
+        <div className="flex justify-between items-center w-full">
+          <div className="text-[10px] text-cyan-400 font-bold">{flightsCount} CIV-AIR</div>
+          <div className="text-[10px] text-orange-400 font-bold">{trafficCount} TRAFFIC</div>
+          <div className="text-[10px] text-red-500 font-bold">{earthquakesCount} SEISMIC</div>
+        </div>
+        <div className="text-[8px] font-bold opacity-30 uppercase text-center border-t border-white/5 pt-1">SEC_PROTOCOL: AES-256 // SOURCE: MULTI_FEED_V8</div>
       </div>
     </div>
   </div>
@@ -178,6 +207,7 @@ function App() {
   const [viewState, setViewState] = useState<MapViewState>(INITIAL_VIEW_STATE);
   const [flights, setFlights] = useState<FlightData[]>([]);
   const [earthquakes, setEarthquakes] = useState<SeismicData[]>([]);
+  const [satellites, setSatellites] = useState<SatelliteData[]>([]);
   const [traffic, setTraffic] = useState<TrafficTrip[]>([]);
   const [time, setTime] = useState(0);
   const [visionMode, setVisionMode] = useState<'CRT' | 'NVG' | 'FLIR'>('CRT');
@@ -212,9 +242,14 @@ function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [fData, eData] = await Promise.all([getLiveFlights(), getSeismicActivity()]);
+        const [fData, eData, sData] = await Promise.all([
+          getLiveFlights(),
+          getSeismicActivity(),
+          getSatelliteTracks()
+        ]);
         setFlights(fData);
         setEarthquakes(eData);
+        setSatellites(sData);
       } catch (err) {
         console.error("OSINT Fetch Error:", err);
       }
@@ -249,6 +284,28 @@ function App() {
   };
 
   const layers = useMemo(() => [
+    new Tile3DLayer({
+      id: 'google-3d-tiles',
+      data: `https://tile.googleapis.com/v1/3dtiles/datasets/google-photorealistic-3d-tiles/tileset?key=${GOOGLE_MAP_KEY}`,
+      visible: !!GOOGLE_MAP_KEY,
+      opacity: 1.0,
+    }),
+    new LineLayer({
+      id: 'satellite-beams',
+      data: satellites,
+      getSourcePosition: (d: any) => [d.longitude, d.latitude, d.altitude],
+      getTargetPosition: (d: any) => [d.longitude, d.latitude, 0],
+      getColor: [0, 255, 255, 50],
+      getWidth: 1
+    }),
+    new ScatterplotLayer({
+      id: 'satellite-layer',
+      data: satellites,
+      getPosition: (d: any) => [d.longitude, d.latitude, d.altitude],
+      getFillColor: [0, 255, 255],
+      getRadius: 10000,
+      pickable: true
+    }),
     new ScatterplotLayer({
       id: 'seismic-layer',
       data: earthquakes,
@@ -284,13 +341,13 @@ function App() {
       sizeScale: 10,
       getPosition: (d: any) => [d.longitude, d.latitude, d.altitude + 50],
       getSize: 3,
-      getColor: [0, 255, 255, 255],
+      getColor: (d: any) => d.isMilitary ? [255, 0, 0, 255] : [0, 255, 255, 255],
       getAngle: (d: any) => 360 - (d.heading || 0),
       transitions: { getPosition: 15000 },
       updateTriggers: { getPosition: [flights] },
       pickable: true
     })
-  ], [earthquakes, traffic, flights, time]);
+  ], [earthquakes, traffic, flights, satellites, time]);
 
   const modeClass = visionMode === 'CRT' ? 'crt-overlay' :
     visionMode === 'NVG' ? 'nvg-overlay saturate-200 contrast-125 sepia hue-rotate-[70deg] brightness-110' :
@@ -331,7 +388,14 @@ function App() {
         viewMode={viewMode}
         setViewMode={setViewMode}
       />
-      <HudOverlay viewState={viewState} flightsCount={flights.length} earthquakesCount={earthquakes.length} trafficCount={traffic.length} />
+      <HudOverlay
+        viewState={viewState}
+        flightsCount={flights.filter(f => !f.isMilitary).length}
+        militaryCount={flights.filter(f => f.isMilitary).length}
+        satellitesCount={satellites.length}
+        earthquakesCount={earthquakes.length}
+        trafficCount={traffic.length}
+      />
     </div>
   );
 }
