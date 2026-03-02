@@ -298,16 +298,18 @@ function App() {
 
   return (
     <div className="w-screen h-screen overflow-hidden relative">
-      {/* Premium Cinematic Layers */}
-      <div className="sunrise-bg">
+      {/* Cinematic Technical Void Layers */}
+      <div className="void-bg">
+        <div className="technical-grid" />
         <div className="atmosphere-haze" />
         <div className="space-dust" />
-        <div className="sun-orb" />
+        <div className="data-node" style={{ top: '10%', left: '20%' }} />
+        <div className="data-node" style={{ top: '40%', left: '80%' }} />
+        <div className="data-node" style={{ top: '70%', left: '40%' }} />
         <div className="lens-flare">
           <div className="flare-ring flare-ring-1" />
           <div className="flare-ring flare-ring-2" />
           <div className="flare-ring flare-ring-3" />
-          <div className="flare-ring flare-ring-4" />
         </div>
       </div>
 

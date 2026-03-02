@@ -140,50 +140,67 @@
 }
 
 /* Cinematic Atmosphere & Backgrounds */
-.sunrise-bg {
+/* Cinematic Technical Void Background */
+.void-bg {
   position: fixed;
   inset: 0;
-  background: radial-gradient(circle at 10% 20%, #1e293b 0%, #020617 100%);
+  background: #000;
+  background-image:
+    radial-gradient(circle at 50% 50%, #0a0a1a 0%, #000 100%);
   z-index: 0;
   overflow: hidden;
 }
 
+.technical-grid {
+  position: absolute;
+  inset: -100%;
+  background-image:
+    linear-gradient(rgba(0, 255, 65, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 255, 65, 0.03) 1px, transparent 1px);
+  background-size: 100px 100px;
+  transform: perspective(1000px) rotateX(60deg) translateY(0);
+  animation: grid-drift 60s linear infinite;
+  z-index: -2;
+}
+
+@keyframes grid-drift {
+  from {
+    transform: perspective(1000px) rotateX(60deg) translateY(0);
+  }
+
+  to {
+    transform: perspective(1000px) rotateX(60deg) translateY(100px);
+  }
+}
+
 .atmosphere-haze {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 60%;
-  background: linear-gradient(to top,
-      rgba(255, 140, 0, 0.15) 0%,
-      rgba(30, 58, 138, 0.1) 40%,
-      transparent 100%);
+  inset: 0;
+  background: radial-gradient(circle at center, transparent 30%, rgba(0, 255, 255, 0.05) 100%);
   pointer-events: none;
   z-index: -1;
 }
 
-.sun-orb {
+.data-node {
   position: absolute;
-  top: 15%;
-  left: 10%;
-  width: 120px;
-  height: 120px;
-  background: radial-gradient(circle, #fff 0%, #fff7ed 20%, #ffedd5 40%, transparent 70%);
-  filter: blur(12px);
-  box-shadow: 0 0 100px 30px rgba(255, 165, 0, 0.3);
-  z-index: -1;
-  animation: sun-glow 10s ease-in-out infinite alternate;
+  width: 2px;
+  height: 2px;
+  background: #00ff41;
+  border-radius: 50%;
+  filter: blur(1px);
+  box-shadow: 0 0 10px #00ff41;
+  animation: node-pulse 4s ease-in-out infinite alternate;
 }
 
-@keyframes sun-glow {
+@keyframes node-pulse {
   from {
-    transform: scale(1);
-    opacity: 0.7;
+    opacity: 0.2;
+    transform: scale(0.8);
   }
 
   to {
-    transform: scale(1.1);
-    opacity: 0.9;
+    opacity: 0.8;
+    transform: scale(1.2);
   }
 }
 
@@ -193,22 +210,21 @@
   pointer-events: none;
   z-index: -1;
   background-image:
-    radial-gradient(1px 1px at 10% 20%, rgba(255, 255, 255, 0.4) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 30% 50%, rgba(255, 255, 255, 0.3) 0%, transparent 100%),
-    radial-gradient(1px 1px at 70% 80%, rgba(255, 255, 255, 0.4) 0%, transparent 100%),
-    radial-gradient(1.5px 1.5px at 90% 10%, rgba(255, 140, 0, 0.3) 0%, transparent 100%);
-  background-size: 400px 400px;
-  animation: dust-drift 60s linear infinite;
-  opacity: 0.3;
+    radial-gradient(1px 1px at 10% 20%, rgba(0, 255, 255, 0.3) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 30% 50%, rgba(0, 255, 65, 0.2) 0%, transparent 100%),
+    radial-gradient(1px 1px at 70% 80%, rgba(0, 255, 255, 0.3) 0%, transparent 100%);
+  background-size: 500px 500px;
+  animation: dust-drift 120s linear infinite;
+  opacity: 0.5;
 }
 
 @keyframes dust-drift {
   from {
-    transform: translate(0, 0);
+    transform: rotate(0deg) scale(1.0);
   }
 
   to {
-    transform: translate(-400px, 400px);
+    transform: rotate(360deg) scale(1.1);
   }
 }
 
@@ -218,56 +234,45 @@
   pointer-events: none;
   z-index: -1;
   overflow: hidden;
+  opacity: 0.3;
 }
 
 .flare-ring {
   position: absolute;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  animation: flare-float 30s linear infinite alternate;
+  background: radial-gradient(circle, rgba(0, 255, 255, 0.05) 0%, transparent 70%);
+  border: 1px solid rgba(0, 255, 255, 0.02);
+  animation: flare-float 40s linear infinite alternate;
 }
 
 .flare-ring-1 {
-  width: 400px;
-  height: 400px;
-  top: 10%;
-  left: 5%;
-  opacity: 0.1;
-  box-shadow: 0 0 120px rgba(255, 255, 255, 0.05);
+  width: 600px;
+  height: 600px;
+  top: -10%;
+  left: -10%;
 }
 
 .flare-ring-2 {
-  width: 200px;
-  height: 200px;
-  top: 35%;
-  left: 25%;
-  opacity: 0.05;
+  width: 300px;
+  height: 300px;
+  top: 40%;
+  left: 70%;
 }
 
 .flare-ring-3 {
-  width: 300px;
-  height: 300px;
-  top: 50%;
-  left: 40%;
-  opacity: 0.07;
-}
-
-.flare-ring-4 {
-  width: 120px;
-  height: 120px;
-  top: 65%;
-  left: 55%;
-  opacity: 0.03;
+  width: 450px;
+  height: 450px;
+  top: 60%;
+  left: 10%;
 }
 
 @keyframes flare-float {
   from {
-    transform: translate(0, 0) rotate(0deg);
+    transform: translate(0, 0) scale(1.0);
   }
 
   to {
-    transform: translate(30px, 30px) rotate(5deg);
+    transform: translate(50px, 50px) scale(1.05);
   }
 }
 
