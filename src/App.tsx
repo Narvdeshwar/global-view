@@ -31,6 +31,7 @@ const ViewContainer = memo(({ viewState, setViewState, layers, onMouseEnter, onM
         viewState={viewState}
         controller={true}
         layers={layers}
+        style={{ background: 'transparent' }}
         onViewStateChange={(e) => setViewState(e.viewState as any)}
         getTooltip={({ object }) => {
           if (!object) return null;
@@ -46,6 +47,7 @@ const ViewContainer = memo(({ viewState, setViewState, layers, onMouseEnter, onM
         <Map
           mapStyle={MAP_STYLE}
           projection={viewMode === 'GLOBE' ? 'globe' : 'mercator'}
+          style={{ background: 'transparent' }}
         />
       </DeckGL>
     </div>
@@ -248,8 +250,17 @@ function App() {
       visionMode === 'FLIR' ? 'flir-overlay invert hue-rotate-180 contrast-150 saturate-200' : '';
 
   return (
-    <div className="w-screen h-screen bg-black overflow-hidden relative">
-      <div className="universe-bg"><div className="star-field" /></div>
+    <div className="w-screen h-screen overflow-hidden relative">
+      <div className="sunrise-bg">
+        <div className="atmosphere-haze" />
+        <div className="sun-orb" />
+        <div className="lens-flare">
+          <div className="flare-ring flare-ring-1" />
+          <div className="flare-ring flare-ring-2" />
+          <div className="flare-ring flare-ring-3" />
+          <div className="flare-ring flare-ring-4" />
+        </div>
+      </div>
 
       <ViewContainer
         viewState={viewState}
