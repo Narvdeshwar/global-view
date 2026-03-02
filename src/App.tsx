@@ -23,9 +23,40 @@ const INITIAL_VIEW_STATE = {
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const AIRPLANE_ICON = 'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png';
 
+const DIAGNOSTIC_MESSAGES = [
+  "UPLINK_ESTABLISHED // SOURCE: OPEN-SKY-NODE-7",
+  "SEISMIC_BUFFER_FLUSH... OK",
+  "ENCRYPTING_GEOSPATIAL_STREAM...",
+  "TRAFFIC_PARTICLES_SYNCING // NODES: ACTIVE",
+  "RADAR_SWEEP_COMPLETE // NO_ANOMALIES",
+  "THERMAL_CALIBRATION_PENDING...",
+  "SATELLITE_LOCK_STABLE // ORBIT: IND-O-1",
+  "OSINT_AGGREGATOR_V6 // STATUS: NOMINAL"
+];
+
+const ScrollingDiagnostic = memo(() => {
+  const [messages, setMessages] = useState<string[]>([]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const msg = DIAGNOSTIC_MESSAGES[Math.floor(Math.random() * DIAGNOSTIC_MESSAGES.length)];
+      setMessages(prev => [...prev.slice(-4), msg]);
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="diagnostic-scroller h-20 overflow-hidden text-[9px] opacity-40 font-mono mt-4 border-t border-green-500/20 pt-2">
+      {messages.map((m, i) => (
+        <div key={i} className="mb-1 animate-in slide-in-from-left duration-500">{m}</div>
+      ))}
+    </div>
+  );
+});
+
 const ViewContainer = memo(({ viewState, setViewState, layers, onMouseEnter, onMouseLeave, viewMode }: any) => {
   return (
-    <div onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} className="w-full h-full">
+    <div onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave} className="w-full h-full relative">
       <DeckGL
         initialViewState={INITIAL_VIEW_STATE}
         viewState={viewState}
@@ -62,17 +93,17 @@ const VisualProcessingPanel = memo(({ visionMode, setVisionMode, viewMode, setVi
   viewMode: 'MAP' | 'GLOBE',
   setViewMode: (mode: 'MAP' | 'GLOBE') => void
 }) => (
-  <div className="absolute top-24 right-4 z-20 pointer-events-auto glass-panel p-4 rounded-md text-green-500 font-mono text-xs w-[310px]">
-    <div className="uppercase tracking-widest border-b border-green-500/30 pb-2 mb-3 neon-text font-bold">Orbital Processing</div>
+  <div className="absolute top-24 right-4 z-20 pointer-events-auto glass-panel p-5 rounded-lg text-green-500 font-mono text-xs w-[320px]">
+    <div className="uppercase tracking-[0.2em] border-b border-green-500/30 pb-3 mb-4 neon-text font-black text-sm italic">Tactical Processing</div>
 
-    <div className="mb-4">
-      <div className="text-[10px] opacity-60 mb-2 uppercase">Projection System</div>
+    <div className="mb-5">
+      <div className="text-[9px] opacity-50 mb-2 uppercase tracking-widest font-bold">Projection Matrix</div>
       <div className="flex gap-2">
         {(['MAP', 'GLOBE'] as const).map(mode => (
           <button
             key={mode}
             onClick={() => setViewMode(mode)}
-            className={`flex-1 py-1 border border-green-500/30 text-[10px] ${viewMode === mode ? 'bg-green-500/40 border-green-400 text-white' : 'bg-transparent hover:bg-green-500/10'} transition-all`}
+            className={`tactical-btn flex-1 py-1.5 border border-green-500/30 text-[10px] font-bold ${viewMode === mode ? 'bg-green-500/40 border-green-400 text-white shadow-[0_0_15px_rgba(0,255,65,0.25)]' : 'bg-transparent hover:bg-green-500/10'} rounded-sm`}
           >
             {mode}
           </button>
@@ -81,47 +112,63 @@ const VisualProcessingPanel = memo(({ visionMode, setVisionMode, viewMode, setVi
     </div>
 
     <div>
-      <div className="text-[10px] opacity-60 mb-2 uppercase">Optical Filtration</div>
+      <div className="text-[9px] opacity-50 mb-2 uppercase tracking-widest font-bold">Spectral Filtration</div>
       <div className="flex gap-2 flex-wrap">
         {(['CRT', 'NVG', 'FLIR'] as const).map(mode => (
           <button
             key={mode}
             onClick={() => setVisionMode(mode)}
-            className={`flex-1 min-w-[65px] py-1 border border-green-500/30 text-[10px] ${visionMode === mode ? 'bg-green-500/40 border-green-400 text-white' : 'bg-transparent hover:bg-green-500/10'} transition-all`}
+            className={`tactical-btn flex-1 min-w-[75px] py-1.5 border border-green-500/30 text-[10px] font-bold ${visionMode === mode ? 'bg-green-500/40 border-green-400 text-white shadow-[0_0_15px_rgba(0,255,65,0.25)]' : 'bg-transparent hover:bg-green-500/10'} rounded-sm`}
           >
             {mode}
           </button>
         ))}
       </div>
     </div>
+
+    <ScrollingDiagnostic />
   </div>
 ));
 
 const HudOverlay = memo(({ viewState, flightsCount, earthquakesCount, trafficCount }: any) => (
   <div className="absolute top-4 left-4 z-10 font-mono pointer-events-none">
-    <div className="flex items-center gap-3 mb-2">
-      <div className="w-4 h-4 bg-red-600 rounded-full animate-pulse shadow-[0_0_15px_rgba(220,38,38,0.8)]" />
-      <h1 className="text-2xl font-black tracking-tighter neon-text italic">IND-PANOPTICON <span className="text-[10px] not-italic opacity-50 font-normal">v6.0-PRO</span></h1>
+    <div className="flex items-center gap-4 mb-3">
+      <div className="relative">
+        <div className="w-5 h-5 bg-red-600 rounded-full animate-pulse shadow-[0_0_20px_rgba(220,38,38,0.9)]" />
+        <div className="absolute -inset-1 border border-red-600/50 rounded-full animate-ping" />
+      </div>
+      <h1 className="text-3xl font-black tracking-tighter neon-text italic uppercase">IND-PANOPTICON <span className="text-[10px] not-italic opacity-40 font-normal uppercase ml-2 tracking-widest border border-green-500/30 px-2 py-0.5">SENSORY-v8.0</span></h1>
     </div>
 
-    <div className="glass-panel p-4 rounded-sm border-l-4 border-l-green-500 text-white">
-      <div className="flex gap-4 text-[10px]">
-        <div className="opacity-70">STATUS: <span className="text-green-400">NOMINAL</span></div>
-        <div className="opacity-70">UPLINK: <span className="text-cyan-400">ACTIVE</span></div>
+    <div className="glass-panel p-5 rounded-sm border-l-4 border-l-green-500 text-white w-[350px]">
+      <div className="flex justify-between items-center mb-4 pb-3 border-b border-green-500/20">
+        <div className="text-[10px] font-bold"><span className="opacity-50">STATUS:</span> <span className="text-green-400 animate-pulse">OPTIMIZED</span></div>
+        <div className="text-[10px] font-bold"><span className="opacity-50">THREAD:</span> <span className="text-cyan-400">0xf2-CORE</span></div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 text-[11px] border-t border-green-500/20 pt-3">
-        <div className="opacity-50 uppercase text-[9px]">Coordinates</div>
-        <div className="opacity-50 uppercase text-[9px]">Sensor Data</div>
+      <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-[11px]">
+        <div className="space-y-1">
+          <div className="opacity-40 uppercase text-[8px] font-bold tracking-widest">Geodetic-X</div>
+          <div className="text-white font-black text-lg tracking-tight transition-all duration-300">{viewState.latitude?.toFixed(4)}N</div>
+        </div>
+        <div className="space-y-1 text-right">
+          <div className="opacity-40 uppercase text-[8px] font-bold tracking-widest">Signal:Air</div>
+          <div className="text-cyan-400 font-black text-lg tracking-tight">{flightsCount} T-NODE</div>
+        </div>
 
-        <div className="text-white font-bold">{viewState.latitude?.toFixed(4)}N</div>
-        <div className="text-cyan-400 font-bold">{flightsCount} AIR TRACKS</div>
+        <div className="space-y-1">
+          <div className="opacity-40 uppercase text-[8px] font-bold tracking-widest">Geodetic-Y</div>
+          <div className="text-white font-black text-lg tracking-tight tracking-tight">{viewState.longitude?.toFixed(4)}E</div>
+        </div>
+        <div className="space-y-1 text-right">
+          <div className="opacity-40 uppercase text-[8px] font-bold tracking-widest">Signal:Seis</div>
+          <div className="text-red-400 font-black text-lg tracking-tight">{earthquakesCount} ALERT</div>
+        </div>
+      </div>
 
-        <div className="text-white font-bold">{viewState.longitude?.toFixed(4)}E</div>
-        <div className="text-red-400 font-bold">{earthquakesCount} SEISMIC</div>
-
-        <div className="text-white font-bold">Z-{viewState.zoom?.toFixed(1)}</div>
-        <div className="text-orange-400 font-bold">{trafficCount} NODES</div>
+      <div className="mt-4 pt-4 border-t border-green-500/20 flex justify-between items-center">
+        <div className="text-[8px] font-bold opacity-30 uppercase">Uplink Encryption: AES-256</div>
+        <div className="text-orange-400 font-bold text-xs">{trafficCount} TRAFFIC</div>
       </div>
     </div>
   </div>
@@ -251,8 +298,10 @@ function App() {
 
   return (
     <div className="w-screen h-screen overflow-hidden relative">
+      {/* Premium Cinematic Layers */}
       <div className="sunrise-bg">
         <div className="atmosphere-haze" />
+        <div className="space-dust" />
         <div className="sun-orb" />
         <div className="lens-flare">
           <div className="flare-ring flare-ring-1" />

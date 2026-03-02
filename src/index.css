@@ -78,6 +78,13 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Orbital Sunrise & Premium Palette */
+  --sunrise-primary: #ff8c00;
+  --sunrise-secondary: #ff4500;
+  --atmosphere-blue: #1e3a8a;
+  --neon-green: #00ff41;
+  --neon-glow: 0 0 10px rgba(0, 255, 65, 0.3);
 }
 
 .dark {
@@ -120,7 +127,7 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground overflow-hidden;
   }
 
   .maplibregl-popup-content {
@@ -132,17 +139,7 @@
   }
 }
 
-/* Orbital Sunrise & Atmospheric System */
-:root {
-  --sunrise-primary: #ff8c00;
-  --sunrise-secondary: #ff4500;
-  --atmosphere-blue: #1e3a8a;
-  --deep-space: #020617;
-  --horizon-glow: rgba(255, 140, 0, 0.4);
-  --neon-green: #00ff41;
-  --neon-glow: 0 0 10px rgba(0, 255, 65, 0.3);
-}
-
+/* Cinematic Atmosphere & Backgrounds */
 .sunrise-bg {
   position: fixed;
   inset: 0;
@@ -169,26 +166,49 @@
   position: absolute;
   top: 15%;
   left: 10%;
-  width: 100px;
-  height: 100px;
+  width: 120px;
+  height: 120px;
   background: radial-gradient(circle, #fff 0%, #fff7ed 20%, #ffedd5 40%, transparent 70%);
-  filter: blur(8px);
-  box-shadow: 0 0 80px 30px rgba(255, 165, 0, 0.3);
+  filter: blur(12px);
+  box-shadow: 0 0 100px 30px rgba(255, 165, 0, 0.3);
   z-index: -1;
-  animation: sun-glow 8s ease-in-out infinite;
+  animation: sun-glow 10s ease-in-out infinite alternate;
 }
 
 @keyframes sun-glow {
-
-  0%,
-  100% {
+  from {
     transform: scale(1);
-    opacity: 0.8;
+    opacity: 0.7;
   }
 
-  50% {
+  to {
     transform: scale(1.1);
-    opacity: 1;
+    opacity: 0.9;
+  }
+}
+
+.space-dust {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background-image:
+    radial-gradient(1px 1px at 10% 20%, rgba(255, 255, 255, 0.4) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 30% 50%, rgba(255, 255, 255, 0.3) 0%, transparent 100%),
+    radial-gradient(1px 1px at 70% 80%, rgba(255, 255, 255, 0.4) 0%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 90% 10%, rgba(255, 140, 0, 0.3) 0%, transparent 100%);
+  background-size: 400px 400px;
+  animation: dust-drift 60s linear infinite;
+  opacity: 0.3;
+}
+
+@keyframes dust-drift {
+  from {
+    transform: translate(0, 0);
+  }
+
+  to {
+    transform: translate(-400px, 400px);
   }
 }
 
@@ -200,85 +220,112 @@
   overflow: hidden;
 }
 
+.flare-ring {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, transparent 70%);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  animation: flare-float 30s linear infinite alternate;
+}
+
 .flare-ring-1 {
-  width: 300px;
-  height: 300px;
+  width: 400px;
+  height: 400px;
   top: 10%;
   left: 5%;
   opacity: 0.1;
-  box-shadow: 0 0 100px rgba(255, 255, 255, 0.05);
+  box-shadow: 0 0 120px rgba(255, 255, 255, 0.05);
 }
 
 .flare-ring-2 {
-  width: 150px;
-  height: 150px;
-  top: 30%;
-  left: 20%;
+  width: 200px;
+  height: 200px;
+  top: 35%;
+  left: 25%;
   opacity: 0.05;
 }
 
 .flare-ring-3 {
-  width: 220px;
-  height: 220px;
-  top: 45%;
-  left: 35%;
-  opacity: 0.08;
+  width: 300px;
+  height: 300px;
+  top: 50%;
+  left: 40%;
+  opacity: 0.07;
 }
 
 .flare-ring-4 {
-  width: 80px;
-  height: 80px;
-  top: 60%;
-  left: 50%;
+  width: 120px;
+  height: 120px;
+  top: 65%;
+  left: 55%;
   opacity: 0.03;
-}
-
-.flare-ring {
-  position: absolute;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  animation: flare-float 20s linear infinite alternate;
 }
 
 @keyframes flare-float {
   from {
-    transform: translate(0, 0);
+    transform: translate(0, 0) rotate(0deg);
   }
 
   to {
-    transform: translate(20px, 20px);
+    transform: translate(30px, 30px) rotate(5deg);
   }
 }
 
+/* Sensory UI & HUD Elements */
 .glass-panel {
-  background: rgba(0, 0, 0, 0.7);
-  backdrop-filter: blur(16px) saturate(180%);
-  border: 1px solid rgba(0, 255, 65, 0.2);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), var(--neon-glow);
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(25px) saturate(200%);
+  border: 1px solid rgba(0, 255, 65, 0.3);
+  box-shadow: 0 8px 40px 0 rgba(0, 0, 0, 0.7), 0 0 20px rgba(0, 255, 65, 0.15);
 }
 
 .neon-text {
   color: var(--neon-green);
-  text-shadow: 0 0 8px rgba(0, 255, 65, 0.4);
+  text-shadow: 0 0 12px rgba(0, 255, 65, 0.6);
 }
 
-/* Enhanced Visual Overlays */
+.tactical-btn {
+  @apply relative overflow-hidden transition-all duration-300;
+}
+
+.tactical-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0, 255, 65, 0.25), transparent);
+  transition: 0.6s;
+}
+
+.tactical-btn:hover::before {
+  left: 100%;
+}
+
+.diagnostic-scroller {
+  mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+}
+
+/* Tactical Visual Overlays */
 .crt-overlay {
   position: absolute;
   inset: 0;
   z-index: 1000;
   pointer-events: none;
-  background-image: radial-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 100%),
-    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.03) 0px, rgba(0, 0, 0, 0.03) 1px, transparent 1px, transparent 2px);
+  background-image:
+    radial-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.3) 100%),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.05) 0px, rgba(0, 0, 0, 0.05) 1px, transparent 1px, transparent 2px);
+  mask-image: radial-gradient(circle at center, black 70%, transparent 100%);
+  opacity: 0.8;
 }
 
 .nvg-overlay {
-  background: radial-gradient(circle at center, transparent 30%, rgba(0, 50, 0, 0.3) 100%);
+  background: radial-gradient(circle at center, transparent 40%, rgba(0, 50, 0, 0.4) 100%);
   pointer-events: none;
 }
 
 .flir-overlay {
-  background: radial-gradient(circle at center, transparent 30%, rgba(20, 0, 0, 0.3) 100%);
+  background: radial-gradient(circle at center, transparent 40%, rgba(20, 0, 0, 0.4) 100%);
   pointer-events: none;
 }
