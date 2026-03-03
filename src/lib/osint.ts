@@ -115,3 +115,48 @@ export async function getSatelliteTracks(): Promise<SatelliteData[]> {
     }
     return satellites;
 }
+
+export interface CyberThreat {
+    id: string;
+    source: [number, number];
+    target: [number, number];
+    type: 'DDOS' | 'EXFIL' | 'INTRUSION';
+    intensity: number; // 0-1
+}
+
+/**
+ * Simulates a massive cyber-warfare event with intrusion arcs targeting major hubs.
+ */
+export function getCyberThreats(): CyberThreat[] {
+    const targets = [
+        [72.8777, 19.0760], // Mumbai
+        [77.2090, 28.6139], // Delhi
+        [77.5946, 12.9716], // Bangalore
+        [80.2707, 13.0827], // Chennai
+        [78.4867, 17.3850], // Hyderabad
+    ];
+
+    const threats: CyberThreat[] = [];
+    const count = 30 + Math.random() * 50; // Dynamic severity
+
+    for (let i = 0; i < count; i++) {
+        const target = targets[Math.floor(Math.random() * targets.length)];
+        // Random global external sources
+        const source: [number, number] = [
+            (Math.random() - 0.5) * 360,
+            (Math.random() - 0.5) * 160
+        ];
+
+        const types: ('DDOS' | 'EXFIL' | 'INTRUSION')[] = ['DDOS', 'EXFIL', 'INTRUSION'];
+
+        threats.push({
+            id: `cyber-${Math.random()}`,
+            source,
+            target: target as [number, number],
+            type: types[Math.floor(Math.random() * types.length)],
+            intensity: Math.random()
+        });
+    }
+
+    return threats;
+}
