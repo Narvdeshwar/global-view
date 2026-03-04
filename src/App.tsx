@@ -8,8 +8,8 @@ import { HeatmapLayer, HexagonLayer } from '@deck.gl/aggregation-layers';
 import { Map, Source, Layer } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { SmartCamera } from './components/SmartCamera';
-import { getLiveFlights, getSeismicActivity, getSatelliteTracks, getCyberThreats } from './lib/osint';
-import type { FlightData, SeismicData, SatelliteData, CyberThreat } from './lib/osint';
+import { getLiveFlights, getSeismicActivity, getSatelliteTracks, getCyberThreats, getVesselTraffic } from './lib/osint';
+import type { FlightData, SeismicData, SatelliteData, CyberThreat, VesselData } from './lib/osint';
 import { loadCityRoadsSequentially } from './lib/traffic';
 import type { TrafficTrip } from './lib/traffic';
 import { playTacticalSound, startAmbientDrone } from './lib/sounds';
@@ -25,6 +25,14 @@ const INITIAL_VIEW_STATE = {
 const MAP_STYLE = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 const AIRPLANE_ICON = 'https://raw.githubusercontent.com/visgl/deck.gl-data/master/website/icon-atlas.png';
 const GOOGLE_MAP_KEY = ''; // ENTER_KEY_FOR_3D_TILES_PHASE_2
+
+const MAJOR_PORTS = [
+  { name: 'MUMBAI / JNPT', lon: 72.85, lat: 18.95 },
+  { name: 'CHENNAI PORT', lon: 80.30, lat: 13.10 },
+  { name: 'KOCHI PORT', lon: 76.25, lat: 9.95 },
+  { name: 'VIZAG PORT', lon: 83.30, lat: 17.70 },
+  { name: 'KANDLA PORT', lon: 70.21, lat: 23.01 },
+];
 
 // Helper to calculate a circle polygon for orbital footprint
 function getCirclePolygon(centerPoint: [number, number], radiusInKm: number, points: number = 32) {
@@ -132,13 +140,17 @@ const ViewContainer = memo(({ viewState, setViewState, layers, onMouseEnter, onM
 
 const MemoizedSmartCamera = memo(SmartCamera);
 
-const VisualProcessingPanel = memo(({ visionMode, setVisionMode, viewMode, setViewMode }: {
+const VisualProcessingPanel = memo(({ visionMode, setVisionMode, viewMode, setViewMode, isHex, setIsHex, isOrbital, setIsOrbital, isVessels, setIsVessels, isPorts, setIsPorts }: {
   visionMode: 'CRT' | 'NVG' | 'FLIR',
   setVisionMode: (mode: 'CRT' | 'NVG' | 'FLIR') => void,
   viewMode: 'MAP' | 'GLOBE',
-  setViewMode: (mode: 'MAP' | 'GLOBE') => void
+  setViewMode: (mode: 'MAP' | 'GLOBE') => void,
+  isHex: boolean, setIsHex: (v: boolean) => void,
+  isOrbital: boolean, setIsOrbital: (v: boolean) => void,
+  isVessels: boolean, setIsVessels: (v: boolean) => void,
+  isPorts: boolean, setIsPorts: (v: boolean) => void
 }) => (
-  <div className="absolute top-24 right-4 z-20 pointer-events-auto glass-panel p-5 rounded-lg text-green-500 font-mono text-xs w-[320px]">
+  <div className="absolute top-4 right-4 z-20 pointer-events-auto glass-panel p-5 rounded-lg text-green-500 font-mono text-xs w-[320px]">
     <div className="uppercase tracking-[0.2em] border-b border-green-500/30 pb-3 mb-4 neon-text font-black text-sm italic">Tactical Processing</div>
 
     <div className="mb-5">
@@ -171,11 +183,21 @@ const VisualProcessingPanel = memo(({ visionMode, setVisionMode, viewMode, setVi
       </div>
     </div>
 
+    <div className="mt-5">
+      <div className="text-[9px] opacity-50 mb-2 uppercase tracking-widest font-bold">Tactical Overlays</div>
+      <div className="grid grid-cols-2 gap-2">
+        <button onClick={() => setIsHex(!isHex)} className={`tactical-btn py-1.5 border border-green-500/30 text-[9px] font-bold ${isHex ? 'bg-green-500/40 text-white' : 'bg-transparent'} rounded-sm`}>HEX_GRID</button>
+        <button onClick={() => setIsOrbital(!isOrbital)} className={`tactical-btn py-1.5 border border-green-500/30 text-[9px] font-bold ${isOrbital ? 'bg-green-500/40 text-white' : 'bg-transparent'} rounded-sm`}>ORBITAL</button>
+        <button onClick={() => setIsVessels(!isVessels)} className={`tactical-btn py-1.5 border border-green-500/30 text-[9px] font-bold ${isVessels ? 'bg-green-500/40 text-white' : 'bg-transparent'} rounded-sm`}>VESSELS</button>
+        <button onClick={() => setIsPorts(!isPorts)} className={`tactical-btn py-1.5 border border-green-500/30 text-[9px] font-bold ${isPorts ? 'bg-green-500/40 text-white' : 'bg-transparent'} rounded-sm`}>PORTS</button>
+      </div>
+    </div>
+
     <ScrollingDiagnostic />
   </div>
 ));
 
-const HudOverlay = memo(({ viewState, flightsCount, militaryCount, satellitesCount, earthquakesCount, trafficCount }: any) => (
+const HudOverlay = memo(({ viewState, flightsCount, militaryCount, satellitesCount, earthquakesCount, trafficCount, vesselsCount }: any) => (
   <div className="absolute top-4 left-4 z-10 font-mono pointer-events-none">
     <div className="flex items-center gap-4 mb-3">
       <div className="relative">
@@ -211,13 +233,26 @@ const HudOverlay = memo(({ viewState, flightsCount, militaryCount, satellitesCou
         </div>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-green-500/20 flex flex-col gap-2">
-        <div className="flex justify-between items-center w-full">
-          <div className="text-[10px] text-cyan-400 font-bold">{flightsCount} CIV-AIR</div>
-          <div className="text-[10px] text-orange-400 font-bold">{trafficCount} TRAFFIC</div>
-          <div className="text-[10px] text-red-500 font-bold">{earthquakesCount} SEISMIC</div>
+      <div className="mt-4 pt-4 border-t border-green-500/20">
+        <div className="grid grid-cols-2 gap-x-8 gap-y-2">
+          <div className="flex justify-between items-center">
+            <span className="text-[9px] opacity-40 uppercase font-bold">Civ-Air</span>
+            <span className="text-[10px] text-cyan-400 font-bold">{flightsCount}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-[9px] opacity-40 uppercase font-bold">Traffic</span>
+            <span className="text-[10px] text-orange-400 font-bold">{trafficCount}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-[9px] opacity-40 uppercase font-bold">Vessel</span>
+            <span className="text-[10px] text-yellow-400 font-bold">{vesselsCount}</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-[9px] opacity-40 uppercase font-bold">Seismic</span>
+            <span className="text-[10px] text-red-500 font-bold">{earthquakesCount}</span>
+          </div>
         </div>
-        <div className="text-[8px] font-bold opacity-30 uppercase text-center border-t border-white/5 pt-1">SEC_PROTOCOL: AES-256 // SOURCE: MULTI_FEED_V8</div>
+        <div className="text-[8px] font-bold opacity-30 uppercase text-center border-t border-white/5 mt-3 pt-2">SEC_PROTOCOL: AES-256 // SOURCE: MULTI_FEED_V8</div>
       </div>
     </div>
   </div>
@@ -227,11 +262,12 @@ const TargetIntelligenceSidebar = memo(({ asset, onClose }: { asset: any, onClos
   if (!asset) return null;
 
   const isFlight = 'callsign' in asset;
-  const isSat = 'name' in asset;
+  const isVessel = 'mmsi' in asset;
+  const isSat = 'name' in asset && !isVessel;
   const isSeismic = 'magnitude' in asset;
 
   return (
-    <div className="absolute top-24 left-4 z-20 pointer-events-auto glass-panel p-5 rounded-lg text-green-500 font-mono text-xs w-[320px] animate-in slide-in-from-left duration-300">
+    <div className="absolute top-[420px] right-4 z-30 pointer-events-auto glass-panel p-5 rounded-lg text-green-500 font-mono text-xs w-[320px] animate-in slide-in-from-right duration-300">
       <div className="flex justify-between items-center border-b border-green-500/30 pb-3 mb-4">
         <div className="uppercase tracking-[0.2em] neon-text font-black text-sm italic">Target Acquisition</div>
         <button onClick={onClose} className="hover:text-white transition-colors"> [X] </button>
@@ -245,7 +281,7 @@ const TargetIntelligenceSidebar = memo(({ asset, onClose }: { asset: any, onClos
         <div className="spec-sheet">
           <div className="spec-item">
             <span className="spec-label">Classification</span>
-            <span className="spec-value">{isFlight ? (asset.isMilitary ? 'MILITARY_AIR' : 'CIVILIAN_AIR') : isSat ? 'ORBITAL_NODE' : 'GEOLOGICAL_ALERT'}</span>
+            <span className="spec-value">{isFlight ? (asset.isMilitary ? 'MILITARY_AIR' : 'CIVILIAN_AIR') : isVessel ? (asset.type === 'MILITARY' ? 'NAVAL_ASSET' : 'COMMERCIAL_VESSEL') : isSat ? 'ORBITAL_NODE' : 'GEOLOGICAL_ALERT'}</span>
           </div>
           {isFlight && (
             <>
@@ -272,6 +308,22 @@ const TargetIntelligenceSidebar = memo(({ asset, onClose }: { asset: any, onClos
               <div className="spec-item">
                 <span className="spec-label">Orbit</span>
                 <span className="spec-value">LEO // {Math.round(asset.altitude / 1000)}km</span>
+              </div>
+            </>
+          )}
+          {isVessel && (
+            <>
+              <div className="spec-item">
+                <span className="spec-label">MMSI</span>
+                <span className="spec-value">{asset.mmsi}</span>
+              </div>
+              <div className="spec-item">
+                <span className="spec-label">Heading</span>
+                <span className="spec-value">{asset.heading}°</span>
+              </div>
+              <div className="spec-item">
+                <span className="spec-label">Speed</span>
+                <span className="spec-value">{asset.speed.toFixed(1)} kn</span>
               </div>
             </>
           )}
@@ -395,7 +447,11 @@ const SituationReport = memo(({ data, onClose }: { data: any, onClose: () => voi
           </div>
           <div className="p-3 border border-white/5 rounded">
             <div className="text-[9px] opacity-40 uppercase">Surface Traffic</div>
-            <div className="text-xl font-bold">{data.traffic} units</div>
+            <div className="text-xl font-bold">{data.traffic}</div>
+          </div>
+          <div className="p-3 border border-white/5 rounded">
+            <div className="text-[9px] opacity-40 uppercase">Maritime Assets</div>
+            <div className="text-xl font-bold">{data.vessels}</div>
           </div>
         </div>
 
@@ -425,6 +481,9 @@ function App() {
   const [time, setTime] = useState(0);
   const [isHexGridActive, setIsHexGridActive] = useState(false);
   const [isOrbitalFootprintActive, setIsOrbitalFootprintActive] = useState(false);
+  const [vessels, setVessels] = useState<VesselData[]>([]);
+  const [isVesselsActive, setIsVesselsActive] = useState(false);
+  const [isPortsActive, setIsPortsActive] = useState(false);
 
   const threatLevel = useMemo(() => {
     if (isCyberWarfareActive) return 1.0; // Cyber war sets max threat
@@ -434,6 +493,15 @@ function App() {
   }, [flights, earthquakes, isCyberWarfareActive]);
 
   const threatColor = isCyberWarfareActive ? '#ff003c' : (threatLevel > 0.6 ? '#ff3131' : threatLevel > 0.3 ? '#ff8c00' : '#00f3ff');
+
+  const counts = useMemo(() => ({
+    civAir: flights.filter(f => !f.isMilitary).length,
+    milAir: flights.filter(f => f.isMilitary).length,
+    sat: satellites.length,
+    seismic: earthquakes.length,
+    traffic: traffic.length,
+    vessels: vessels.length
+  }), [flights, satellites, earthquakes, traffic, vessels]);
 
   // Recon Patrol Logic
   useEffect(() => {
@@ -508,6 +576,7 @@ function App() {
         setFlights(fData);
         setEarthquakes(eData);
         setSatellites(sData);
+        setVessels(getVesselTraffic());
       } catch (err) {
         console.error("OSINT Fetch Error:", err);
       }
@@ -561,7 +630,7 @@ function App() {
     }
   };
 
-  const layers = useMemo(() => [
+  const staticLayers = useMemo(() => [
     new Tile3DLayer({
       id: 'google-3d-tiles',
       data: `https://tile.googleapis.com/v1/3dtiles/datasets/google-photorealistic-3d-tiles/tileset?key=${GOOGLE_MAP_KEY}`,
@@ -620,18 +689,6 @@ function App() {
       opacity: 0.8,
       updateTriggers: { getPosition: [earthquakes], getRadius: [earthquakes] }
     }),
-    new TripsLayer({
-      id: 'traffic-layer',
-      data: traffic,
-      getPath: (d: any) => d.path,
-      getTimestamps: (d: any) => d.timestamps,
-      getColor: (d: any) => d.vendor === 0 ? [253, 128, 93] : [23, 184, 190],
-      opacity: 0.8,
-      widthMinPixels: 2,
-      rounded: true,
-      trailLength: 200,
-      currentTime: time,
-    }),
     new HeatmapLayer({
       id: 'activity-heatmap',
       data: flights,
@@ -674,6 +731,15 @@ function App() {
         getPolygon: [satellites]
       }
     }),
+    new ScatterplotLayer({
+      id: 'vessel-layer',
+      data: vessels,
+      getPosition: (d: any) => [d.longitude, d.latitude],
+      getFillColor: (d: any) => d.type === 'MILITARY' ? [255, 0, 100] : [255, 200, 0],
+      getRadius: 2000,
+      pickable: true,
+      visible: isVesselsActive
+    }),
     new IconLayer({
       id: 'flight-layer',
       data: flights,
@@ -690,54 +756,92 @@ function App() {
       updateTriggers: { getPosition: [flights] },
       pickable: true
     })
-  ], [earthquakes, traffic, flights, satellites, time, selectedAsset, isHeatmapActive, isCyberWarfareActive, cyberThreats, isHexGridActive, isOrbitalFootprintActive]);
+  ], [earthquakes, flights, satellites, selectedAsset, isHeatmapActive, isCyberWarfareActive, cyberThreats, isHexGridActive, isOrbitalFootprintActive, vessels, isVesselsActive]);
+
+  const layers = useMemo(() => [
+    ...staticLayers,
+    new TripsLayer({
+      id: 'traffic-layer',
+      data: traffic,
+      getPath: (d: any) => d.path,
+      getTimestamps: (d: any) => d.timestamps,
+      getColor: (d: any) => d.vendor === 0 ? [253, 128, 93] : [23, 184, 190],
+      opacity: 0.8,
+      widthMinPixels: 2,
+      rounded: true,
+      trailLength: 200,
+      currentTime: time,
+    }),
+    new ScatterplotLayer({
+      id: 'port-layer',
+      data: MAJOR_PORTS,
+      getPosition: (d: any) => [d.lon, d.lat],
+      getFillColor: [255, 255, 255, 50],
+      getLineColor: [0, 255, 255, 200],
+      stroked: true,
+      lineWidthMinPixels: 2,
+      getRadius: 15000,
+      visible: isPortsActive,
+      // Pulse effect via time
+      radiusScale: 0.8 + Math.sin(time / 10) * 0.2
+    })
+  ], [staticLayers, time, isPortsActive, traffic]);
 
   const handleCommand = useCallback((cmd: string) => {
     const [action, ...args] = cmd.toLowerCase().split(' ');
-    setLogs(prev => [`CMD: ${cmd.toUpperCase()}`, ...prev].slice(0, 15));
+    const addLog = (msg: string) => setLogs(prev => [msg, ...prev].slice(0, 15));
+    addLog(`CMD: ${cmd.toUpperCase()}`);
 
     if (action === '/goto' && args.length > 0) {
-      setLogs(prev => ["INITIATING GEODETIC SEARCH...", ...prev]);
+      addLog("INITIATING GEODETIC SEARCH...");
     } else if (action === '/vision' && args.length > 0) {
       const mode = args[0].toUpperCase() as any;
       if (['CRT', 'NVG', 'FLIR'].includes(mode)) {
         setVisionMode(mode);
-        setLogs(prev => [`FILTRATION SET: ${mode}`, ...prev]);
+        addLog(`FILTRATION SET: ${mode}`);
       }
     } else if (action === '/lock') {
       setIsRotating(false);
-      setLogs(prev => ["ORBITAL LOCK ENGAGED", ...prev]);
+      addLog("ORBITAL LOCK ENGAGED");
     } else if (action === '/unlock') {
       setIsRotating(true);
       setSelectedAsset(null);
-      setLogs(prev => ["ORBITAL LOCK RELEASED", ...prev]);
+      addLog("ORBITAL LOCK RELEASED");
     } else if (action === '/heatmap') {
       setIsHeatmapActive(prev => !prev);
-      setLogs(prev => [`HEATMAP OVERLAY: ${!isHeatmapActive ? 'ON' : 'OFF'}`, ...prev]);
+      addLog(`HEATMAP OVERLAY: ${!isHeatmapActive ? 'ON' : 'OFF'}`);
     } else if (action === '/patrol') {
       setIsPatrolActive(prev => !prev);
-      setLogs(prev => [`RECON PATROL: ${!isPatrolActive ? 'ACTIVE' : 'STANDBY'}`, ...prev]);
+      addLog(`RECON PATROL: ${!isPatrolActive ? 'ACTIVE' : 'STANDBY'}`);
     } else if (action === '/report') {
       setShowReport(true);
       playTacticalSound('SELECT');
-      setLogs(prev => ["GENERATING THEATER BRIEFING...", ...prev]);
+      addLog("GENERATING THEATER BRIEFING...");
     } else if (action === '/intrusion') {
       setIsCyberWarfareActive(prev => {
         const nextState = !prev;
         if (nextState) playTacticalSound('WARNING');
         return nextState;
       });
-      setLogs(prev => [`CYBER WARFARE SIMULATION: ${!isCyberWarfareActive ? 'ACTIVE' : 'OFF'}`, ...prev]);
+      addLog(`CYBER WARFARE SIMULATION: ${!isCyberWarfareActive ? 'ACTIVE' : 'OFF'}`);
     } else if (action === '/hex') {
       setIsHexGridActive(prev => !prev);
       playTacticalSound('SELECT');
-      setLogs(prev => [`HEX/GRID ANALYTICS: ${!isHexGridActive ? 'LINKED' : 'UNLINKED'}`, ...prev]);
+      addLog(`HEX/GRID ANALYTICS: ${!isHexGridActive ? 'LINKED' : 'UNLINKED'}`);
     } else if (action === '/orbital') {
       setIsOrbitalFootprintActive(prev => !prev);
       playTacticalSound('SELECT');
-      setLogs(prev => [`ORBITAL TARGETING PROJECTION: ${!isOrbitalFootprintActive ? 'ENGAGED' : 'RELEASED'}`, ...prev]);
+      addLog(`ORBITAL TARGETING PROJECTION: ${!isOrbitalFootprintActive ? 'ENGAGED' : 'RELEASED'}`);
+    } else if (action === '/vessels') {
+      setIsVesselsActive(prev => !prev);
+      playTacticalSound('SELECT');
+      addLog(`MARITIME AIS TRACKING: ${!isVesselsActive ? 'ACTIVE' : 'OFFLINE'}`);
+    } else if (action === '/ports') {
+      setIsPortsActive(prev => !prev);
+      playTacticalSound('SELECT');
+      addLog(`STRATEGIC PORT NODES: ${!isPortsActive ? 'ONLINE' : 'OFFLINE'}`);
     }
-  }, [isHeatmapActive, isPatrolActive, isCyberWarfareActive, isHexGridActive, isOrbitalFootprintActive]);
+  }, [isHeatmapActive, isPatrolActive, isCyberWarfareActive, isHexGridActive, isOrbitalFootprintActive, isVesselsActive, isPortsActive]);
 
   const modeClass = visionMode === 'CRT' ? 'crt-overlay' :
     visionMode === 'NVG' ? 'nvg-overlay saturate-200 contrast-125 sepia hue-rotate-[70deg] brightness-110' :
@@ -814,14 +918,23 @@ function App() {
         setVisionMode={setVisionMode}
         viewMode={viewMode}
         setViewMode={setViewMode}
+        isHex={isHexGridActive}
+        setIsHex={setIsHexGridActive}
+        isOrbital={isOrbitalFootprintActive}
+        setIsOrbital={setIsOrbitalFootprintActive}
+        isVessels={isVesselsActive}
+        setIsVessels={setIsVesselsActive}
+        isPorts={isPortsActive}
+        setIsPorts={setIsPortsActive}
       />
       <HudOverlay
         viewState={viewState}
-        flightsCount={flights.filter(f => !f.isMilitary).length}
-        militaryCount={flights.filter(f => f.isMilitary).length}
-        satellitesCount={satellites.length}
-        earthquakesCount={earthquakes.length}
-        trafficCount={traffic.length}
+        flightsCount={counts.civAir}
+        militaryCount={counts.milAir}
+        satellitesCount={counts.sat}
+        earthquakesCount={counts.seismic}
+        trafficCount={counts.traffic}
+        vesselsCount={counts.vessels}
       />
 
       <CortexTerminal onCommand={handleCommand} />
@@ -835,7 +948,8 @@ function App() {
             flights: flights.length,
             satellites: satellites.length,
             seismic: earthquakes.length,
-            traffic: traffic.length
+            traffic: traffic.length,
+            vessels: vessels.length
           }}
         />
       )}

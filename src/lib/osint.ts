@@ -39,6 +39,17 @@ export interface SatelliteData {
     altitude: number;
 }
 
+export interface VesselData {
+    id: string;
+    mmsi: string;
+    name: string;
+    longitude: number;
+    latitude: number;
+    heading: number;
+    speed: number;
+    type: 'CARGO' | 'TANKER' | 'MILITARY';
+}
+
 /**
  * Fetches commercial flights from OpenSky Network, filtered by India bounding box.
  */
@@ -114,6 +125,42 @@ export async function getSatelliteTracks(): Promise<SatelliteData[]> {
         });
     }
     return satellites;
+}
+
+/**
+ * Simulates Maritime Domain Awareness (MDA) AIS data near Indian ports.
+ */
+export function getVesselTraffic(): VesselData[] {
+    const ports = [
+        { name: 'MUMBAI', lon: 72.85, lat: 18.95 },
+        { name: 'CHENNAI', lon: 80.30, lat: 13.10 },
+        { name: 'KOCHI', lon: 76.25, lat: 9.95 },
+        { name: 'VIZAG', lon: 83.30, lat: 17.70 },
+        { name: 'KANDLA', lon: 70.21, lat: 23.01 },
+    ];
+
+    const vessels: VesselData[] = [];
+    const types: ('CARGO' | 'TANKER' | 'MILITARY')[] = ['CARGO', 'TANKER', 'MILITARY'];
+
+    ports.forEach(port => {
+        const count = 5 + Math.floor(Math.random() * 10);
+        for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 0.5 + Math.random() * 3; // Distance from port
+            vessels.push({
+                id: `vessel-${port.name}-${i}`,
+                mmsi: `419${Math.floor(100000 + Math.random() * 900000)}`,
+                name: `${port.name}_SHIP_${i}`,
+                longitude: port.lon + Math.cos(angle) * dist,
+                latitude: port.lat + Math.sin(angle) * dist,
+                heading: Math.floor(Math.random() * 360),
+                speed: 10 + Math.random() * 20,
+                type: types[Math.floor(Math.random() * types.length)]
+            });
+        }
+    });
+
+    return vessels;
 }
 
 export interface CyberThreat {

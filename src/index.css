@@ -315,15 +315,15 @@
 /* Strategic Intelligence & Target Monitoring */
 .sentinel-monitor {
   position: absolute;
-  bottom: 40px;
-  left: 40px;
-  width: 240px;
-  height: 180px;
-  border: 4px double rgba(0, 255, 65, 0.4);
+  bottom: 8px;
+  left: 8px;
+  width: 180px;
+  height: 120px;
+  border: 1px double rgba(0, 255, 65, 0.4);
   background: #000;
   overflow: hidden;
   z-index: 50;
-  box-shadow: 0 0 30px rgba(0, 0, 0, 0.8), inset 0 0 50px rgba(0, 255, 65, 0.1);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.8), inset 0 0 30px rgba(0, 255, 65, 0.1);
 }
 
 .monitor-pov {
@@ -471,14 +471,14 @@
 
 .neural-link-log {
   position: absolute;
-  bottom: 240px;
-  left: 16px;
+  bottom: 140px;
+  left: 8px;
   z-index: 20;
-  width: 300px;
-  height: 300px;
+  width: 280px;
+  height: 200px;
   overflow: hidden;
   pointer-events: none;
-  mask-image: linear-gradient(to top, black 80%, transparent);
+  mask-image: linear-gradient(to top, black 70%, transparent);
 }
 
 .log-entry {
