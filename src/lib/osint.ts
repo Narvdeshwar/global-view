@@ -171,6 +171,21 @@ export interface CyberThreat {
     intensity: number; // 0-1
 }
 
+export interface CableData {
+    id: string;
+    name: string;
+    path: [number, number][];
+    capacity: string;
+}
+
+export interface SigintNode {
+    id: string;
+    longitude: number;
+    latitude: number;
+    intensity: number;
+    frequency: string;
+}
+
 /**
  * Simulates a massive cyber-warfare event with intrusion arcs targeting major hubs.
  */
@@ -206,4 +221,110 @@ export function getCyberThreats(): CyberThreat[] {
     }
 
     return threats;
+}
+
+export interface LogisticsNode {
+    id: string;
+    name: string;
+    type: 'GRAIN_SILO' | 'FUEL_DEPOT' | 'POWER_HUB';
+    longitude: number;
+    latitude: number;
+    inventory: number; // 0-1
+}
+
+export interface FreightPath {
+    id: string;
+    name: string;
+    path: [number, number][];
+}
+
+/**
+ * Simulates Submarine Fiber Optic Cable paths connecting India.
+ */
+export function getSubmarineCables(): CableData[] {
+    return [
+        {
+            id: 'smw-5',
+            name: 'SEA-ME-WE 5',
+            path: [[55.0, 25.0], [65.0, 20.0], [72.8, 18.9], [80.3, 13.1], [90.0, 5.0]],
+            capacity: '24 Tbps'
+        },
+        {
+            id: 'aae-1',
+            name: 'AAE-1',
+            path: [[45.0, 12.0], [55.0, 15.0], [72.8, 18.9], [76.2, 9.9]],
+            capacity: '40 Tbps'
+        },
+        {
+            id: 'bbg',
+            name: 'Bay of Bengal Gateway',
+            path: [[80.3, 13.1], [85.0, 10.0], [92.0, 5.0], [100.0, 2.0]],
+            capacity: '6.4 Tbps'
+        },
+        {
+            id: 'tic',
+            name: 'Tata Indicom Cable',
+            path: [[80.3, 13.1], [88.0, 12.0], [103.8, 1.3]],
+            capacity: '5.1 Tbps'
+        }
+    ];
+}
+
+/**
+ * Simulates SIGINT signal pulses along undersea infrastructure.
+ */
+export function getSigintSignals(cables: CableData[]): any[] {
+    const signals: any[] = [];
+    cables.forEach(cable => {
+        // Create 2-3 active signals per cable
+        for (let i = 0; i < 3; i++) {
+            const pathIndex = Math.floor(Math.random() * (cable.path.length - 1));
+            const start = cable.path[pathIndex];
+            const end = cable.path[pathIndex + 1];
+            signals.push({
+                id: `sig-${cable.id}-${i}`,
+                cableName: cable.name,
+                source: start,
+                target: end,
+                intensity: Math.random()
+            });
+        }
+    });
+    return signals;
+}
+
+/**
+ * Simulates Strategic Freight Corridors (Railway Spines) across India.
+ */
+export function getFreightTraffic(): FreightPath[] {
+    return [
+        {
+            id: 'dfc-east',
+            name: 'EASTERN DFC',
+            path: [[77.2, 28.6], [80.9, 26.8], [82.9, 25.3], [88.3, 22.5]] // Delhi to Howrah roughly
+        },
+        {
+            id: 'dfc-west',
+            name: 'WESTERN DFC',
+            path: [[77.2, 28.6], [75.8, 26.9], [72.6, 23.0], [72.8, 19.0]] // Delhi to JNPT roughly
+        },
+        {
+            id: 'gq-south',
+            name: 'GQ-SOUTH',
+            path: [[72.8, 19.0], [75.0, 15.0], [77.6, 13.0], [80.3, 13.1]] // Mumbai to Chennai
+        }
+    ];
+}
+
+/**
+ * Simulates Strategic Resource Hubs (Grain Silos, Fuel, Power).
+ */
+export function getStrategicHubs(): LogisticsNode[] {
+    return [
+        { id: 'hub-1', name: 'SPR-MUMBAI', type: 'FUEL_DEPOT', longitude: 72.8, latitude: 19.2, inventory: 0.85 },
+        { id: 'hub-2', name: 'GRAIN-LUDHIANA', type: 'GRAIN_SILO', longitude: 75.8, latitude: 30.9, inventory: 0.92 },
+        { id: 'hub-3', name: 'SPR-VIZAG', type: 'FUEL_DEPOT', longitude: 83.3, latitude: 17.7, inventory: 0.78 },
+        { id: 'hub-4', name: 'POWER-GRID-HQ', type: 'POWER_HUB', longitude: 77.2, latitude: 28.6, inventory: 0.95 },
+        { id: 'hub-5', name: 'GRAIN-HARYANA', type: 'GRAIN_SILO', longitude: 76.6, latitude: 29.1, inventory: 0.88 }
+    ];
 }

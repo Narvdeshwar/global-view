@@ -2,14 +2,14 @@ import { useState, useEffect, memo, useMemo, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
 import { FlyToInterpolator } from '@deck.gl/core';
 import type { MapViewState } from '@deck.gl/core';
-import { IconLayer, ScatterplotLayer, LineLayer, ArcLayer, PolygonLayer } from '@deck.gl/layers';
+import { IconLayer, ScatterplotLayer, LineLayer, ArcLayer, PolygonLayer, PathLayer } from '@deck.gl/layers';
 import { TripsLayer, Tile3DLayer } from '@deck.gl/geo-layers';
 import { HeatmapLayer, HexagonLayer } from '@deck.gl/aggregation-layers';
 import { Map, Source, Layer } from 'react-map-gl/maplibre';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { SmartCamera } from './components/SmartCamera';
-import { getLiveFlights, getSeismicActivity, getSatelliteTracks, getCyberThreats, getVesselTraffic } from './lib/osint';
-import type { FlightData, SeismicData, SatelliteData, CyberThreat, VesselData } from './lib/osint';
+import { getLiveFlights, getSeismicActivity, getSatelliteTracks, getCyberThreats, getVesselTraffic, getSubmarineCables, getSigintSignals, getFreightTraffic, getStrategicHubs } from './lib/osint';
+import type { FlightData, SeismicData, SatelliteData, CyberThreat, VesselData, CableData, LogisticsNode, FreightPath } from './lib/osint';
 import { loadCityRoadsSequentially } from './lib/traffic';
 import type { TrafficTrip } from './lib/traffic';
 import { playTacticalSound, startAmbientDrone } from './lib/sounds';
@@ -140,7 +140,7 @@ const ViewContainer = memo(({ viewState, setViewState, layers, onMouseEnter, onM
 
 const MemoizedSmartCamera = memo(SmartCamera);
 
-const VisualProcessingPanel = memo(({ visionMode, setVisionMode, viewMode, setViewMode, isHex, setIsHex, isOrbital, setIsOrbital, isVessels, setIsVessels, isPorts, setIsPorts }: {
+const VisualProcessingPanel = memo(({ visionMode, setVisionMode, viewMode, setViewMode, isHex, setIsHex, isOrbital, setIsOrbital, isVessels, setIsVessels, isPorts, setIsPorts, isSigint, setIsSigint, isLogistics, setIsLogistics }: {
   visionMode: 'CRT' | 'NVG' | 'FLIR',
   setVisionMode: (mode: 'CRT' | 'NVG' | 'FLIR') => void,
   viewMode: 'MAP' | 'GLOBE',
@@ -148,7 +148,9 @@ const VisualProcessingPanel = memo(({ visionMode, setVisionMode, viewMode, setVi
   isHex: boolean, setIsHex: (v: boolean) => void,
   isOrbital: boolean, setIsOrbital: (v: boolean) => void,
   isVessels: boolean, setIsVessels: (v: boolean) => void,
-  isPorts: boolean, setIsPorts: (v: boolean) => void
+  isPorts: boolean, setIsPorts: (v: boolean) => void,
+  isSigint: boolean, setIsSigint: (v: boolean) => void,
+  isLogistics: boolean, setIsLogistics: (v: boolean) => void
 }) => (
   <div className="absolute top-4 right-4 z-20 pointer-events-auto glass-panel p-5 rounded-lg text-green-500 font-mono text-xs w-[320px]">
     <div className="uppercase tracking-[0.2em] border-b border-green-500/30 pb-3 mb-4 neon-text font-black text-sm italic">Tactical Processing</div>
@@ -190,6 +192,8 @@ const VisualProcessingPanel = memo(({ visionMode, setVisionMode, viewMode, setVi
         <button onClick={() => setIsOrbital(!isOrbital)} className={`tactical-btn py-1.5 border border-green-500/30 text-[9px] font-bold ${isOrbital ? 'bg-green-500/40 text-white' : 'bg-transparent'} rounded-sm`}>ORBITAL</button>
         <button onClick={() => setIsVessels(!isVessels)} className={`tactical-btn py-1.5 border border-green-500/30 text-[9px] font-bold ${isVessels ? 'bg-green-500/40 text-white' : 'bg-transparent'} rounded-sm`}>VESSELS</button>
         <button onClick={() => setIsPorts(!isPorts)} className={`tactical-btn py-1.5 border border-green-500/30 text-[9px] font-bold ${isPorts ? 'bg-green-500/40 text-white' : 'bg-transparent'} rounded-sm`}>PORTS</button>
+        <button onClick={() => setIsSigint(!isSigint)} className={`tactical-btn py-1.5 border border-green-500/30 text-[9px] font-bold ${isSigint ? 'bg-cyan-500/40 text-white border-cyan-500/50' : 'bg-transparent'} rounded-sm`}>SIGINT</button>
+        <button onClick={() => setIsLogistics(!isLogistics)} className={`tactical-btn py-1.5 border border-green-500/30 text-[9px] font-bold ${isLogistics ? 'bg-orange-500/40 text-white border-orange-500/50' : 'bg-transparent'} rounded-sm`}>LOGISTICS</button>
       </div>
     </div>
 
@@ -197,7 +201,7 @@ const VisualProcessingPanel = memo(({ visionMode, setVisionMode, viewMode, setVi
   </div>
 ));
 
-const HudOverlay = memo(({ viewState, flightsCount, militaryCount, satellitesCount, earthquakesCount, trafficCount, vesselsCount }: any) => (
+const HudOverlay = memo(({ viewState, flightsCount, militaryCount, satellitesCount, earthquakesCount, trafficCount, vesselsCount, sigintCount, supplyHealth }: any) => (
   <div className="absolute top-4 left-4 z-10 font-mono pointer-events-none">
     <div className="flex items-center gap-4 mb-3">
       <div className="relative">
@@ -210,7 +214,7 @@ const HudOverlay = memo(({ viewState, flightsCount, militaryCount, satellitesCou
     <div className="glass-panel p-5 rounded-sm border-l-4 border-l-green-500 text-white w-[350px]">
       <div className="flex justify-between items-center mb-4 pb-3 border-b border-green-500/20">
         <div className="text-[10px] font-bold"><span className="opacity-50">STATUS:</span> <span className="text-green-400 animate-pulse">OPTIMIZED</span></div>
-        <div className="text-[10px] font-bold"><span className="opacity-50">THREAD:</span> <span className="text-cyan-400">0xf2-CORE</span></div>
+        <div className="text-[10px] font-bold"><span className="opacity-50">SUPPLY_HEALTH:</span> <span className="text-orange-400">{supplyHealth}%</span></div>
       </div>
 
       <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-[11px]">
@@ -248,6 +252,10 @@ const HudOverlay = memo(({ viewState, flightsCount, militaryCount, satellitesCou
             <span className="text-[10px] text-yellow-400 font-bold">{vesselsCount}</span>
           </div>
           <div className="flex justify-between items-center">
+            <span className="text-[9px] opacity-40 uppercase font-bold">Sigint</span>
+            <span className="text-[10px] text-cyan-400 font-bold">{sigintCount}</span>
+          </div>
+          <div className="flex justify-between items-center">
             <span className="text-[9px] opacity-40 uppercase font-bold">Seismic</span>
             <span className="text-[10px] text-red-500 font-bold">{earthquakesCount}</span>
           </div>
@@ -263,7 +271,11 @@ const TargetIntelligenceSidebar = memo(({ asset, onClose }: { asset: any, onClos
 
   const isFlight = 'callsign' in asset;
   const isVessel = 'mmsi' in asset;
-  const isSat = 'name' in asset && !isVessel;
+  const isCable = 'capacity' in asset;
+  const isSigintSignal = 'cableName' in asset;
+  const isLogisticsHub = 'inventory' in asset;
+  const isFreightPath = 'path' in asset && !isCable;
+  const isSat = 'name' in asset && !isVessel && !isCable && !isLogisticsHub;
   const isSeismic = 'magnitude' in asset;
 
   return (
@@ -281,7 +293,16 @@ const TargetIntelligenceSidebar = memo(({ asset, onClose }: { asset: any, onClos
         <div className="spec-sheet">
           <div className="spec-item">
             <span className="spec-label">Classification</span>
-            <span className="spec-value">{isFlight ? (asset.isMilitary ? 'MILITARY_AIR' : 'CIVILIAN_AIR') : isVessel ? (asset.type === 'MILITARY' ? 'NAVAL_ASSET' : 'COMMERCIAL_VESSEL') : isSat ? 'ORBITAL_NODE' : 'GEOLOGICAL_ALERT'}</span>
+            <span className="spec-value">{
+              isFlight ? (asset.isMilitary ? 'MILITARY_AIR' : 'CIVILIAN_AIR') :
+                isVessel ? (asset.type === 'MILITARY' ? 'NAVAL_ASSET' : 'COMMERCIAL_VESSEL') :
+                  isSat ? 'ORBITAL_NODE' :
+                    isCable ? 'UNDERSEA_INFRASTRUCTURE' :
+                      isSigintSignal ? 'SIGINT_INTERCEPT' :
+                        isLogisticsHub ? 'STRATEGIC_LOGISTICS_HUB' :
+                          isFreightPath ? 'FREIGHT_CORRIDOR' :
+                            isSeismic ? 'SEISMIC_EVENT' : 'UNKNOWN_SIGNAL'
+            }</span>
           </div>
           {isFlight && (
             <>
@@ -337,6 +358,33 @@ const TargetIntelligenceSidebar = memo(({ asset, onClose }: { asset: any, onClos
                 <span className="spec-label">Location</span>
                 <span className="spec-value">{asset.place}</span>
               </div>
+            </>
+          )}
+          {isCable && (
+            <>
+              <div className="spec-item"><span className="spec-label">Descriptor</span><span className="spec-value">{asset.name}</span></div>
+              <div className="spec-item"><span className="spec-label">Capacity</span><span className="spec-value">{asset.capacity}</span></div>
+              <div className="spec-item"><span className="spec-label">Integrity</span><span className="spec-value text-green-400">NOMINAL</span></div>
+            </>
+          )}
+          {isSigintSignal && (
+            <>
+              <div className="spec-item"><span className="spec-label">Origin</span><span className="spec-value">{asset.cableName}</span></div>
+              <div className="spec-item"><span className="spec-label">Encryption</span><span className="spec-value text-red-500">AES-256-DECODING</span></div>
+              <div className="spec-item"><span className="spec-label">Intensity</span><span className="spec-value">{(asset.intensity * 100).toFixed(1)}%</span></div>
+            </>
+          )}
+          {isLogisticsHub && (
+            <>
+              <div className="spec-item"><span className="spec-label">Designator</span><span className="spec-value">{asset.name}</span></div>
+              <div className="spec-item"><span className="spec-label">Hub Type</span><span className="spec-value">{asset.type}</span></div>
+              <div className="spec-item"><span className="spec-label">Inventory</span><span className="spec-value">{(asset.inventory * 100).toFixed(0)}%</span></div>
+            </>
+          )}
+          {isFreightPath && (
+            <>
+              <div className="spec-item"><span className="spec-label">Corridor</span><span className="spec-value">{asset.name}</span></div>
+              <div className="spec-item"><span className="spec-label">Type</span><span className="spec-value">STRATEGIC_RAIL</span></div>
             </>
           )}
         </div>
@@ -453,6 +501,10 @@ const SituationReport = memo(({ data, onClose }: { data: any, onClose: () => voi
             <div className="text-[9px] opacity-40 uppercase">Maritime Assets</div>
             <div className="text-xl font-bold">{data.vessels}</div>
           </div>
+          <div className="p-3 border border-white/5 rounded">
+            <div className="text-[9px] opacity-40 uppercase">Undersea Sigint</div>
+            <div className="text-xl font-bold">{data.sigint}</div>
+          </div>
         </div>
 
         <p className="text-[10px] leading-relaxed text-white/60 lowercase italic">
@@ -484,6 +536,12 @@ function App() {
   const [vessels, setVessels] = useState<VesselData[]>([]);
   const [isVesselsActive, setIsVesselsActive] = useState(false);
   const [isPortsActive, setIsPortsActive] = useState(false);
+  const [isSigintActive, setIsSigintActive] = useState(false);
+  const [cables, setCables] = useState<CableData[]>([]);
+  const [sigintSignals, setSigintSignals] = useState<any[]>([]);
+  const [isLogisticsActive, setIsLogisticsActive] = useState(false);
+  const [freightPaths, setFreightPaths] = useState<FreightPath[]>([]);
+  const [storageHubs, setStorageHubs] = useState<LogisticsNode[]>([]);
 
   const threatLevel = useMemo(() => {
     if (isCyberWarfareActive) return 1.0; // Cyber war sets max threat
@@ -577,6 +635,11 @@ function App() {
         setEarthquakes(eData);
         setSatellites(sData);
         setVessels(getVesselTraffic());
+        const cableData = getSubmarineCables();
+        setCables(cableData);
+        setSigintSignals(getSigintSignals(cableData));
+        setFreightPaths(getFreightTraffic());
+        setStorageHubs(getStrategicHubs());
       } catch (err) {
         console.error("OSINT Fetch Error:", err);
       }
@@ -585,6 +648,21 @@ function App() {
     const interval = setInterval(fetchData, 15000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!isSigintActive) return;
+    const sigintLogs = [
+      "DECRYPTING_PACKET_STREAM // HUB: MUMBAI",
+      "SIGNAL_INTERCEPTED // CABLE: SEA-ME-WE-5",
+      "UNDERSEA_DATA_SYNC // NODE: CHENNAI",
+      "SIGINT_BUFFER_UPLINK... OK"
+    ];
+    const logInterval = setInterval(() => {
+      const msg = sigintLogs[Math.floor(Math.random() * sigintLogs.length)];
+      setLogs(prev => [msg, ...prev].slice(0, 15));
+    }, 5000);
+    return () => clearInterval(logInterval);
+  }, [isSigintActive]);
 
 
   useEffect(() => {
@@ -740,6 +818,45 @@ function App() {
       pickable: true,
       visible: isVesselsActive
     }),
+    new PathLayer({
+      id: 'submarine-cable-layer',
+      data: cables,
+      getPath: (d: any) => d.path,
+      getColor: [0, 150, 255, 100],
+      getWidth: 10000,
+      widthMinPixels: 2,
+      pickable: true,
+      visible: isSigintActive
+    }),
+    new ArcLayer({
+      id: 'sigint-signal-layer',
+      data: sigintSignals,
+      getSourcePosition: (d: any) => d.source,
+      getTargetPosition: (d: any) => d.target,
+      getSourceColor: [0, 255, 255, 200],
+      getTargetColor: [0, 255, 255, 50],
+      getWidth: 2,
+      visible: isSigintActive
+    }),
+    new PathLayer({
+      id: 'freight-corridor-layer',
+      data: freightPaths,
+      getPath: (d: any) => d.path,
+      getColor: [255, 150, 0, 150],
+      getWidth: 15000,
+      widthMinPixels: 2,
+      pickable: true,
+      visible: isLogisticsActive
+    }),
+    new ScatterplotLayer({
+      id: 'logistics-hub-layer',
+      data: storageHubs,
+      getPosition: (d: any) => [d.longitude, d.latitude],
+      getFillColor: (d: any) => d.inventory > 0.9 ? [0, 255, 65] : [255, 150, 0],
+      getRadius: 15000,
+      pickable: true,
+      visible: isLogisticsActive
+    }),
     new IconLayer({
       id: 'flight-layer',
       data: flights,
@@ -756,7 +873,7 @@ function App() {
       updateTriggers: { getPosition: [flights] },
       pickable: true
     })
-  ], [earthquakes, flights, satellites, selectedAsset, isHeatmapActive, isCyberWarfareActive, cyberThreats, isHexGridActive, isOrbitalFootprintActive, vessels, isVesselsActive]);
+  ], [earthquakes, flights, satellites, selectedAsset, isHeatmapActive, isCyberWarfareActive, cyberThreats, isHexGridActive, isOrbitalFootprintActive, vessels, isVesselsActive, isSigintActive, cables, sigintSignals, isLogisticsActive, freightPaths, storageHubs]);
 
   const layers = useMemo(() => [
     ...staticLayers,
@@ -840,8 +957,16 @@ function App() {
       setIsPortsActive(prev => !prev);
       playTacticalSound('SELECT');
       addLog(`STRATEGIC PORT NODES: ${!isPortsActive ? 'ONLINE' : 'OFFLINE'}`);
+    } else if (action === '/sigint') {
+      setIsSigintActive(prev => !prev);
+      playTacticalSound('SELECT');
+      addLog(`SIGINT UNDERSEA MONITORING: ${!isSigintActive ? 'ACTIVE' : 'OFF'}`);
+    } else if (action === '/logistics') {
+      setIsLogisticsActive(prev => !prev);
+      playTacticalSound('SELECT');
+      addLog(`STRATEGIC LOGISTICS GRID: ${!isLogisticsActive ? 'ACTIVE' : 'STANDBY'}`);
     }
-  }, [isHeatmapActive, isPatrolActive, isCyberWarfareActive, isHexGridActive, isOrbitalFootprintActive, isVesselsActive, isPortsActive]);
+  }, [isHeatmapActive, isPatrolActive, isCyberWarfareActive, isHexGridActive, isOrbitalFootprintActive, isVesselsActive, isPortsActive, isSigintActive, isLogisticsActive]);
 
   const modeClass = visionMode === 'CRT' ? 'crt-overlay' :
     visionMode === 'NVG' ? 'nvg-overlay saturate-200 contrast-125 sepia hue-rotate-[70deg] brightness-110' :
@@ -926,6 +1051,10 @@ function App() {
         setIsVessels={setIsVesselsActive}
         isPorts={isPortsActive}
         setIsPorts={setIsPortsActive}
+        isSigint={isSigintActive}
+        setIsSigint={setIsSigintActive}
+        isLogistics={isLogisticsActive}
+        setIsLogistics={setIsLogisticsActive}
       />
       <HudOverlay
         viewState={viewState}
@@ -935,6 +1064,8 @@ function App() {
         earthquakesCount={counts.seismic}
         trafficCount={counts.traffic}
         vesselsCount={counts.vessels}
+        sigintCount={sigintSignals.length}
+        supplyHealth={Math.round(storageHubs.reduce((acc, hub) => acc + hub.inventory, 0) / (storageHubs.length || 1) * 100)}
       />
 
       <CortexTerminal onCommand={handleCommand} />
@@ -949,7 +1080,8 @@ function App() {
             satellites: satellites.length,
             seismic: earthquakes.length,
             traffic: traffic.length,
-            vessels: vessels.length
+            vessels: vessels.length,
+            sigint: sigintSignals.length
           }}
         />
       )}
